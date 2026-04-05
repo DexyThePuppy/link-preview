@@ -2,7 +2,7 @@
 
 const crypto = require("crypto");
 const http = require("http");
-const linkPreview = require("./index.js");
+const linkPreview = require("../lib/index.js");
 
 const PORT = (() => {
   const n = Number(process.env.PORT);

@@ -32,7 +32,7 @@ REPO_URL="${REPO_URL:-https://github.com/AndrejGajdos/link-preview-generator.git
 DEST_DIR="${DEST_DIR:-${SCRIPT_DIR}/link-preview-server}"
 
 APP_DIR=""
-if [[ -f "${SCRIPT_DIR}/server.js" && -f "${SCRIPT_DIR}/package.json" ]]; then
+if [[ -f "${SCRIPT_DIR}/package.json" && -f "${SCRIPT_DIR}/lib/index.js" && -f "${SCRIPT_DIR}/server/index.js" ]]; then
   APP_DIR="${SCRIPT_DIR}"
 elif [[ -d "${DEST_DIR}/.git" ]]; then
   APP_DIR="${DEST_DIR}"
