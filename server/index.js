@@ -6,7 +6,7 @@ const linkPreview = require("../lib/index.js");
 
 const PORT = (() => {
   const n = Number(process.env.PORT);
-  return Number.isFinite(n) && n > 0 ? n : 3000;
+  return Number.isFinite(n) && n > 0 ? n : 6767;
 })();
 const HOST = process.env.HOST || "127.0.0.1";
 
