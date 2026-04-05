@@ -1,25 +1,52 @@
 "use strict";
+
 const puppeteer = require("puppeteer-extra");
 const pluginStealth = require("puppeteer-extra-plugin-stealth");
-const util = require("util");
-const request = util.promisify(require("request"));
-const getUrls = require("get-urls");
 const isBase64 = require("is-base64");
 
+puppeteer.use(pluginStealth());
+
+let getUrlsFn;
+
+async function extractUrlSet(text) {
+  if (!getUrlsFn) {
+    const mod = await import("get-urls");
+    getUrlsFn = mod.default;
+  }
+  return getUrlsFn(String(text));
+}
+
+const FETCH_TIMEOUT_MS = 15000;
+
 const urlImageIsAccessible = async (url) => {
-  const correctedUrls = getUrls(url);
+  const correctedUrls = await extractUrlSet(url);
   if (isBase64(url, { allowMime: true })) {
     return true;
   }
   if (correctedUrls.size !== 0) {
-    const urlResponse = await request(correctedUrls.values().next().value);
-    const contentType = urlResponse.headers["content-type"];
-    return new RegExp("image/*").test(contentType);
+    const targetUrl = correctedUrls.values().next().value;
+    try {
+      const response = await fetch(targetUrl, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        return false;
+      }
+      const contentType = response.headers.get("content-type");
+      if (contentType) {
+        response.body?.cancel?.();
+      }
+      return /^image\//i.test(contentType || "");
+    } catch {
+      return false;
+    }
   }
+  return false;
 };
 
 const getImg = async (page, uri) => {
-  const img = await page.evaluate(async () => {
+  const img = await page.evaluate(async (pageUri) => {
     const ogImg = document.querySelector('meta[property="og:image"]');
     if (
       ogImg != null &&
@@ -64,16 +91,17 @@ const getImg = async (page, uri) => {
         return addImg;
       });
       if (imgs.length > 0) {
-        imgs.forEach((img) =>
-          img.src.indexOf("//") === -1
-            ? (img.src = `${new URL(uri).origin}/${img.src}`)
-            : img.src
-        );
+        const origin = new URL(pageUri).origin;
+        imgs.forEach((img) => {
+          if (img.src.indexOf("//") === -1) {
+            img.src = `${origin}/${img.src}`;
+          }
+        });
         return imgs[0].src;
       }
     }
     return null;
-  });
+  }, uri);
   return img;
 };
 
@@ -128,7 +156,6 @@ const getDescription = async (page) => {
     let fstVisibleParagraph = null;
     for (let i = 0; i < paragraphs.length; i++) {
       if (
-        // if object is visible in dom
         paragraphs[i].offsetParent !== null &&
         !paragraphs[i].childElementCount != 0
       ) {
@@ -194,8 +221,10 @@ const getFavicon = async (page, uri) => {
       }
     }
 
-    const appleTouchIcons = document.querySelectorAll('link[rel="apple-touch-icon"],link[rel="apple-touch-icon-precomposed"]');
-    for (let i = 0; i < appleTouchIcons.length; i ++) {
+    const appleTouchIcons = document.querySelectorAll(
+      'link[rel="apple-touch-icon"],link[rel="apple-touch-icon-precomposed"]'
+    );
+    for (let i = 0; i < appleTouchIcons.length; i++) {
       if (
         appleTouchIcons[i] &&
         appleTouchIcons[i].href.length > 0 &&
@@ -206,43 +235,89 @@ const getFavicon = async (page, uri) => {
     }
 
     return null;
-  })
+  });
 
   return favicon;
-}
+};
 
+function resolveScreenshotConfig(screenshot) {
+  if (!screenshot) {
+    return null;
+  }
+  const base = {
+    fullPage: true,
+    type: "png",
+    captureBeyondViewport: true,
+    gotoWaitUntil: "networkidle2",
+    gotoTimeout: 120000,
+  };
+  if (screenshot === true) {
+    return base;
+  }
+  return { ...base, ...screenshot };
+}
 
 module.exports = async (
   uri,
   puppeteerArgs = [],
   puppeteerAgent = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
-  executablePath
+  executablePath,
+  screenshot
 ) => {
-  puppeteer.use(pluginStealth());
+  const screenshotConfig = resolveScreenshotConfig(screenshot);
+  const gotoOptions = screenshotConfig
+    ? {
+        waitUntil: screenshotConfig.gotoWaitUntil,
+        timeout: screenshotConfig.gotoTimeout,
+      }
+    : { waitUntil: "load", timeout: 60000 };
 
   const params = {
     headless: true,
     args: [...puppeteerArgs],
   };
   if (executablePath) {
-    params["executablePath"] = executablePath;
+    params.executablePath = executablePath;
   }
 
   const browser = await puppeteer.launch(params);
-  const page = await browser.newPage();
-  page.setUserAgent(puppeteerAgent);
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent(puppeteerAgent);
 
-  await page.goto(uri);
-  await page.exposeFunction("request", request);
-  await page.exposeFunction("urlImageIsAccessible", urlImageIsAccessible);
+    await page.goto(uri, gotoOptions);
+    await page.exposeFunction("urlImageIsAccessible", urlImageIsAccessible);
 
-  const obj = {};
-  obj.title = await getTitle(page);
-  obj.description = await getDescription(page);
-  obj.domain = await getDomainName(page, uri);
-  obj.img = await getImg(page, uri);
-  obj.favicon = await getFavicon(page, uri);
+    const obj = {
+      title: await getTitle(page),
+      description: await getDescription(page),
+      domain: await getDomainName(page, uri),
+      img: await getImg(page, uri),
+      favicon: await getFavicon(page, uri),
+    };
 
-  await browser.close();
-  return obj;
+    if (screenshotConfig) {
+      const { extraDelayMs = 0, gotoWaitUntil: _w, gotoTimeout: _t, ...shot } =
+        screenshotConfig;
+      if (extraDelayMs > 0) {
+        await new Promise((r) => setTimeout(r, extraDelayMs));
+      }
+      const { path: outPath, returnBuffer = true, ...puppeteerShot } = shot;
+      const capture = {
+        ...puppeteerShot,
+        ...(outPath ? { path: outPath } : {}),
+      };
+      const buf = await page.screenshot(capture);
+      if (outPath) {
+        obj.screenshotPath = outPath;
+      }
+      if (returnBuffer && Buffer.isBuffer(buf)) {
+        obj.screenshot = buf;
+      }
+    }
+
+    return obj;
+  } finally {
+    await browser.close().catch(() => {});
+  }
 };

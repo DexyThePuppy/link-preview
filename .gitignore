@@ -3,3 +3,7 @@ node_modules/
 
 #System files
 .DS_Store
+
+# Local screenshot / test outputs
+page.png
+test-shot.png
