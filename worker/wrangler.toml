@@ -1,0 +1,23 @@
+# Cloudflare Worker — link preview with screenshots (Browser Rendering).
+# https://developers.cloudflare.com/browser-rendering/
+#
+# Deploy:  cd worker && npx wrangler deploy
+#
+# Screenshots: enabled via [browser] below. Without KV, responses include screenshotBase64.
+# For /s/full/... image URLs: run  npx wrangler kv namespace create SCREENSHOTS
+# and put the id in [[kv_namespaces]] below (see commented block).
+
+name = "link-preview"
+main = "src/index.js"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[browser]
+binding = "BROWSER"
+# Uncomment for `wrangler dev` if the local session has no browser (uses Cloudflare’s remote browser):
+# remote = true
+
+Optional: npx wrangler kv namespace create SCREENSHOTS  → paste id
+[[kv_namespaces]]
+binding = "SCREENSHOTS"
+id = "42eebf30e1a643d7aacd977f4541cd60"

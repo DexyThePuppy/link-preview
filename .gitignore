@@ -1,5 +1,6 @@
 # Dependency directories
 node_modules/
+worker/node_modules/
 
 # run.sh service fallback dirs (writable HOME/npm cache/tmp)
 .run-home/

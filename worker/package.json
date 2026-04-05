@@ -1,0 +1,14 @@
+{
+  "name": "link-preview-worker",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@cloudflare/puppeteer": "^1.0.6"
+  },
+  "devDependencies": {
+    "wrangler": "^4.28.0"
+  }
+}
