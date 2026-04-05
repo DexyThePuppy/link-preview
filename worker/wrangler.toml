@@ -17,7 +17,15 @@ binding = "BROWSER"
 # Uncomment for `wrangler dev` if the local session has no browser (uses Cloudflare’s remote browser):
 # remote = true
 
-Optional: npx wrangler kv namespace create SCREENSHOTS  → paste id
+# Optional: npx wrangler kv namespace create SCREENSHOTS → paste id below.
 [[kv_namespaces]]
 binding = "SCREENSHOTS"
 id = "42eebf30e1a643d7aacd977f4541cd60"
+
+# Edge cache for preview JSON (seconds). "0" disables; max 300 in code.
+[vars]
+PREVIEW_CACHE_TTL = "60"
+PRETTY_JSON = "0"
+
+[observability]
+enabled = true
