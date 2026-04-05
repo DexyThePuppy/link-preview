@@ -3,6 +3,7 @@
 const puppeteer = require("puppeteer-extra");
 const pluginStealth = require("puppeteer-extra-plugin-stealth");
 const isBase64 = require("is-base64");
+const { extractAccentColor } = require("./accent-color.js");
 
 puppeteer.use(pluginStealth());
 
@@ -17,6 +18,22 @@ async function extractUrlSet(text) {
 }
 
 const FETCH_TIMEOUT_MS = 15000;
+
+function screenshotToBuffer(data) {
+  if (data == null) {
+    return null;
+  }
+  if (Buffer.isBuffer(data)) {
+    return data;
+  }
+  if (data instanceof ArrayBuffer) {
+    return Buffer.from(data);
+  }
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  }
+  return null;
+}
 
 const urlImageIsAccessible = async (url) => {
   const correctedUrls = await extractUrlSet(url);
@@ -241,7 +258,7 @@ const getFavicon = async (page, uri) => {
 };
 
 function resolveScreenshotConfig(screenshot) {
-  if (!screenshot) {
+  if (screenshot === false) {
     return null;
   }
   const base = {
@@ -251,7 +268,7 @@ function resolveScreenshotConfig(screenshot) {
     gotoWaitUntil: "networkidle2",
     gotoTimeout: 120000,
   };
-  if (screenshot === true) {
+  if (screenshot === true || screenshot == null) {
     return base;
   }
   return { ...base, ...screenshot };
@@ -307,12 +324,20 @@ module.exports = async (
         ...puppeteerShot,
         ...(outPath ? { path: outPath } : {}),
       };
-      const buf = await page.screenshot(capture);
+      const buf = screenshotToBuffer(await page.screenshot(capture));
       if (outPath) {
         obj.screenshotPath = outPath;
       }
-      if (returnBuffer && Buffer.isBuffer(buf)) {
+      if (returnBuffer && buf) {
         obj.screenshot = buf;
+        try {
+          const accent = await extractAccentColor(buf);
+          if (accent) {
+            obj.accentColor = accent;
+          }
+        } catch {
+          /* optional */
+        }
       }
     }
 

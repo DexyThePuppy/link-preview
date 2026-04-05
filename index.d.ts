@@ -5,6 +5,7 @@ declare function link_preview_generator(
     puppeteerArgs?: string[],
     puppeteerAgent?: string,
     executablePath?: string,
+    /** Full-page screenshot is on by default. Pass `false` to skip. */
     screenshot?: boolean | ScreenshotCaptureOptions
 ): Promise<LinkPreviewResult>;
 
@@ -26,6 +27,11 @@ declare interface ScreenshotCaptureOptions {
     clip?: { x: number; y: number; width: number; height: number };
 }
 
+declare interface AccentColor {
+    hex: string;
+    rgb: { r: number; g: number; b: number };
+}
+
 declare interface LinkPreviewResult {
     title: string | null;
     description: string | null;
@@ -34,4 +40,6 @@ declare interface LinkPreviewResult {
     favicon: string | null;
     screenshot?: Buffer;
     screenshotPath?: string;
+    /** Present when a screenshot buffer was produced (vibrant hue-weighted sample). */
+    accentColor?: AccentColor | null;
 }
