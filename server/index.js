@@ -15,7 +15,11 @@ const MAX_SCREENSHOTS = 200;
 /** @type {Map<string, { buffer: Buffer, mime: string, timer: NodeJS.Timeout }>} */
 const screenshotStore = new Map();
 
-const SCREENSHOT_PATH_RE = new RegExp(
+const SCREENSHOT_PATH_SIZED = new RegExp(
+  "^/s/(full|viewport|vp)/([a-f0-9]{48})(?:\\.(?:png|jpe?g|webp))?/?$",
+  "i"
+);
+const SCREENSHOT_PATH_LEGACY = new RegExp(
   "^/s/([a-f0-9]{48})(?:\\.(?:png|jpe?g|webp))?/?$",
   "i"
 );
@@ -122,6 +126,14 @@ function fileExtensionFromMime(mime) {
   return ".png";
 }
 
+/** URL path segment for capture mode: full-page vs visible viewport. */
+function screenshotSizePathSegment(screenshotOpts) {
+  if (screenshotOpts && screenshotOpts.fullPage === false) {
+    return "viewport";
+  }
+  return "full";
+}
+
 function previewToJSON(result, screenshotOpts, baseUrl) {
   const out = {
     title: result.title,
@@ -138,7 +150,9 @@ function previewToJSON(result, screenshotOpts, baseUrl) {
     const mime = screenshotMimeFromOpts(screenshotOpts);
     const id = storeScreenshot(shot, mime);
     const ext = fileExtensionFromMime(mime);
-    out.screenshotUrl = `${baseUrl}/s/${id}${ext}`;
+    const sizeSeg = screenshotSizePathSegment(screenshotOpts);
+    out.screenshotSize = sizeSeg;
+    out.screenshotUrl = `${baseUrl}/s/${sizeSeg}/${id}${ext}`;
     out.screenshotMime = mime;
   }
   if (result.accentColor) {
@@ -218,7 +232,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === "/" || pathname === "") {
     sendJson(res, 200, {
       usage:
-        "GET /example.com  — JSON includes screenshotUrl by default (image at GET /s/:id.png|.jpg|.webp). ?screenshot=0 to skip. Tune: ?fullPage=0&type=jpeg&quality=80&extraDelayMs=250",
+        "GET /example.com  — screenshotUrl is /s/full|viewport/:id.ext (full-page vs viewport). Legacy /s/:id.ext still works. ?screenshot=0 to skip. ?fullPage=0 for viewport capture.",
     });
     return;
   }
@@ -229,9 +243,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const shotPath = pathname.match(SCREENSHOT_PATH_RE);
-  if (shotPath) {
-    sendStoredScreenshot(res, shotPath[1].toLowerCase());
+  let shotMatch = pathname.match(SCREENSHOT_PATH_SIZED);
+  if (shotMatch) {
+    sendStoredScreenshot(res, shotMatch[2].toLowerCase());
+    return;
+  }
+  shotMatch = pathname.match(SCREENSHOT_PATH_LEGACY);
+  if (shotMatch) {
+    sendStoredScreenshot(res, shotMatch[1].toLowerCase());
     return;
   }
 

@@ -2,7 +2,7 @@
   "name": "link-preview-generator",
   "version": "1.2.0",
   "description": "Get preview data (a title, description, image, domain name, favicon) from a url. Library uses puppeteer headless browser to scrape the web site.",
-  "main": "lib/index.js",
+  "main": "index.js",
   "scripts": {
     "start": "node server/index.js"
   },
